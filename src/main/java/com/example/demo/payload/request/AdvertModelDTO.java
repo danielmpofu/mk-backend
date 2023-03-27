@@ -1,6 +1,7 @@
 package com.example.demo.payload.request;
 
 import lombok.Data;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -10,21 +11,22 @@ import java.util.Date;
  */
 @Data
 public class AdvertModelDTO implements Serializable {
-    private final Date dateCreated;
-    private final Date dateModified;
-    private final Long createdBy;
-    private final Long modifiedBy;
-    private final long postedBy;
-    private final String postTitle;
-    private final String description;
-    private final String category;
-    private final String location;
-    private final String phoneNumber;
-    private final String phoneNumber2;
-    private final String emailAddress;
-    private final String condition;
-    private final double price;
-    private final double discountPercent;
-    private final boolean inStock;
-    private final boolean negotiable;
+//    private Date dateCreated;
+//    private Date dateModified;
+//    private Long createdBy;
+//    private Long modifiedBy;
+//    private long postedBy;
+    private String postTitle;
+    private String description;
+    private String category;
+    private String location;
+    private String phoneNumber;
+    private String phoneNumber2;
+    private String emailAddress;
+    private String condition;
+    private MultipartFile primaryPic;
+    private double price;
+    private double discountPercent;
+    private boolean inStock;
+    private boolean negotiable;
 }

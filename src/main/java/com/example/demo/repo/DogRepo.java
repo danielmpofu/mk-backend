@@ -12,4 +12,5 @@ import java.util.Optional;
 public interface DogRepo extends JpaRepository<DogModel, Long> {
     Optional<DogModel> findByIdAndDeleted(long id, boolean deleted);
     List<DogModel> findAllByDeleted(boolean deleted);
+
 }

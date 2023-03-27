@@ -1,12 +1,21 @@
 package com.example.demo.payload.request;
 
 import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Date;
+
 @Data
 public class CreateDogDTO {
-    String name,
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+    @Setter
+    @Getter
+    private String name,
             birthPlace,
             notes,
             breeder,
@@ -18,6 +27,6 @@ public class CreateDogDTO {
             deathNotes;
     Date dob, dod;
 
-    boolean isAlive;
-//    MultipartFile primaryPic;
+//    boolean isAlive = true;
+    MultipartFile primaryPic;
 }

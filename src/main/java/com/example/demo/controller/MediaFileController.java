@@ -59,8 +59,8 @@ public class MediaFileController {
         throw new NotImplementedException();
     }
 
-    @GetMapping("/filename/")
-    public ResponseEntity<Resource> getByFileName(@RequestParam("fileName") String fileName) throws FileNotFoundException {
+    @GetMapping("/filename/{fileName}")
+    public ResponseEntity<Resource> getByFileName(@PathVariable String fileName) throws FileNotFoundException {
         MediaFile mediaFile = mediaFileService.findMediaFileByUploadPath(fileName);
         return new RandomMethods().serveFile(mediaFile);
     }

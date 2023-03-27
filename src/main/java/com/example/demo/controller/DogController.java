@@ -1,22 +1,32 @@
 package com.example.demo.controller;
 
+import com.example.demo.entities.ApplicationUser;
+import com.example.demo.entities.MediaFile;
+import com.example.demo.exceptions.ItemNotFoundException;
 import com.example.demo.payload.request.CreateDogDTO;
 import com.example.demo.payload.request.DogUpdateDTO;
+import com.example.demo.payload.request.FileAttachmentDTO;
+import com.example.demo.payload.response.AttachmentUserProfileFull;
 import com.example.demo.payload.response.DogResponseDTO;
 import com.example.demo.entities.DogModel;
+import com.example.demo.payload.response.DogResponseFullDTO;
+import com.example.demo.service.AuthService;
 import com.example.demo.service.DogService;
+import com.example.demo.util.RandomMethods;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.modelmapper.ModelMapper;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.FileOutputStream;
 
+import java.io.IOException;
 import java.util.Date;
 import java.util.List;
 
@@ -26,8 +36,9 @@ import java.util.List;
 @Slf4j
 public class DogController {
 
-    final DogService dogService;
+    private final DogService dogService;
     private final ModelMapper objectMapper;
+    private final AuthService authService;
 
     @GetMapping()
     @Operation(summary = "Get a list of all dogs in the system")
@@ -36,42 +47,88 @@ public class DogController {
                 .findAll()
                 .stream()
                 .parallel()
-                .map(dogModel -> {
-                    return objectMapper.map(dogModel, DogResponseDTO.class);
+                .map((DogModel dogModel) -> {
+                    DogResponseDTO dogResponseDTO = objectMapper.map(dogModel, DogResponseDTO.class);
+                    dogResponseDTO.setPrimaryPic(String.format("baseurl-here/api/v1/media/fileid/%s", dogModel.getFiles().get(0).getId()));
+                    return dogResponseDTO;
                 }).toList());
+    }
+
+    @GetMapping("owner/{username}")
+    @Operation(summary = "Get a list of all dogs in the system uploaded by specific user")
+    public ResponseEntity<List<DogResponseDTO>> getAllDogsByOwner(@PathVariable String username) {
+        ApplicationUser applicationUser = authService.getUserByUserName(username);
+        if (applicationUser != null) {
+
+            return ResponseEntity.ok().body(
+                    applicationUser
+                            .getDogs()
+                            .stream()
+                            .parallel()
+                            .map((DogModel dogModel) -> {
+                                DogResponseDTO dogResponseDTO = objectMapper.map(dogModel, DogResponseDTO.class);
+                                dogResponseDTO.setPrimaryPic(String.format("baseurl-here/api/v1/media/fileid/%s", dogModel.getFiles().get(0).getId()));
+                                return dogResponseDTO;
+                            }).toList());
+        } else {
+            throw new ItemNotFoundException(0L, username);
+        }
+    }
+
+    @PostMapping(path = "attach", consumes = {"multipart/form-data", "application/json"})
+    @Operation(summary = "post a file and id of the dog that you want to add files to!")
+    public ResponseEntity<DogResponseFullDTO> attachDogFile(@ModelAttribute FileAttachmentDTO fileAttachmentDTO) {
+
+        try {
+            String pathToDir = new RandomMethods().createFilePath(fileAttachmentDTO.getFile().getOriginalFilename());
+            File path = new File(pathToDir);
+
+            boolean hasSavedFile = path.createNewFile();
+            if (hasSavedFile) {
+                FileOutputStream output = new FileOutputStream(path);
+                output.write(fileAttachmentDTO.getFile().getBytes());
+                output.close();
+
+                DogModel dogModel = dogService.findDogModelByIdAndDeleted(fileAttachmentDTO.getOwnerId());
+                if (dogModel == null) {
+                    throw new ItemNotFoundException(fileAttachmentDTO.getOwnerId(), DogModel.class.getCanonicalName());
+                }
+                MediaFile mediaFile = new RandomMethods()
+                        .createMediaFile(path, dogModel.getId(), String.format("%s Picture", dogModel.getRegNumber()));
+                dogModel.getFiles().add(mediaFile);
+
+                return getSpecificDog(fileAttachmentDTO.getOwnerId());
+            } else {
+                throw new RuntimeException("Unable to create files at the moment");
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
     }
 
     @PostMapping(consumes = {"multipart/form-data", "application/json"})
     @Operation(summary = "Post a dog creation dto and save the dog if it does not exist")
-    public ResponseEntity<DogResponseDTO> saveNewDog(@ModelAttribute CreateDogDTO createDogDTO, @RequestPart("primaryPic") MultipartFile primaryPic) {
-
-        File directory = new File("public/uploads/");
-        if (!directory.exists()) {
-            try {
-                if (directory.mkdirs()) {
-                    log.info("upload directory just got created now");
-                }
-            } catch (SecurityException se) {
-                log.error(se.toString());
-            }
-        }
-
-        String fileName = (System.currentTimeMillis() + "_" + primaryPic.getOriginalFilename()).replace(" ", "_");
-
-        final String pathToDir = directory.getPath() + File.separator + fileName;
+    public ResponseEntity<DogResponseDTO> saveNewDog(@ModelAttribute CreateDogDTO createDogDTO) {
 
         try {
+            String pathToDir = new RandomMethods().createFilePath(createDogDTO.getPrimaryPic().getOriginalFilename());
             File path = new File(pathToDir);
             boolean hasSavedFile = path.createNewFile();
             FileOutputStream output = new FileOutputStream(path);
-            output.write(primaryPic.getBytes());
+            output.write(createDogDTO.getPrimaryPic().getBytes());
             output.close();
 
             DogModel dogToSave = objectMapper.map(createDogDTO, DogModel.class);
+            ApplicationUser creator = new RandomMethods().getLoggedUser(authService);
+            dogToSave.setCreatedBy(creator.getId());
             dogToSave.setPrimaryPic(pathToDir);
             dogToSave.setRegDate(new Date());
 
-            return ResponseEntity.status(201).body(objectMapper.map(dogService.saveDogModel(dogToSave, path)
+            DogModel savedDog = dogService.saveDogModel(dogToSave, path);
+            log.info(savedDog.toString());
+
+            return ResponseEntity.status(201).body(objectMapper.map(savedDog
                     , DogResponseDTO.class));
 
         } catch (Exception e) {
@@ -83,9 +140,12 @@ public class DogController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<DogResponseDTO> getSpecificDog(@PathVariable Long id) {
+    public ResponseEntity<DogResponseFullDTO> getSpecificDog(@PathVariable Long id) {
         DogModel dogModel = dogService.findDogModelByIdAndDeleted(id);
-        return ResponseEntity.ok().body(objectMapper.map(dogModel, DogResponseDTO.class));
+        ApplicationUser dogOwner = authService.getUser(dogModel.getCreatedBy());
+        DogResponseFullDTO dogResponseFullDTO = objectMapper.map(dogModel, DogResponseFullDTO.class);
+        dogResponseFullDTO.setOwner(objectMapper.map(dogOwner, AttachmentUserProfileFull.class));
+        return ResponseEntity.ok().body(dogResponseFullDTO);
     }
 
     @PutMapping()

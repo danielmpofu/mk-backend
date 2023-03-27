@@ -30,7 +30,7 @@ public class ApplicationUser {
 
     private String firstName, profPic, lastName, passwordHash, physicalAddress, country, dob, city;
 
-    @ManyToMany(fetch = FetchType.EAGER)
+    @ManyToMany(fetch = FetchType.EAGER,cascade = {CascadeType.ALL})
     private Collection<UserRole> roles = new ArrayList<>();
 
     @OneToMany(fetch = FetchType.EAGER)

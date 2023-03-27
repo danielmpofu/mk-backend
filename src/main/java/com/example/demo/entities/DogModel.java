@@ -1,6 +1,8 @@
 package com.example.demo.entities;
 
 import lombok.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import javax.persistence.*;
 import java.util.ArrayList;
@@ -14,23 +16,40 @@ public class DogModel extends Auditable {
 
     @Id
     @GeneratedValue
-    @Setter @Getter
+    @Setter
+    @Getter
     private Long id;
 
-    @Setter @Getter
-    private String name, birthPlace, notes, regNumber, breeder, breed, sponsor, sponsorInfo, color, gender,primaryPic,deathNotes;
+    @Setter
+    @Getter
+    private String name,
+            birthPlace,
+            notes,
+            regNumber,
+            breeder,
+            breed,
+            sponsor,
+            sponsorInfo,
+            color,
+            gender,
+            primaryPic,
+            deathNotes;
 
-    @Setter @Getter
+    @Setter
+    @Getter
     private Date dob, regDate, dod;
 
-    @Setter @Getter
+    @Setter
+    @Getter
     private boolean isAlive;
 
-    @Setter @Getter
+    @Setter
+    @Getter
     private boolean deleted;
 
-    @Setter @Getter
-    @OneToMany(fetch = FetchType.EAGER,cascade = {CascadeType.ALL})
+    @Setter
+    @Getter
+    @OneToMany(fetch = FetchType.EAGER, cascade = {CascadeType.ALL})
     private List<MediaFile> files = new ArrayList<>();
 }
 

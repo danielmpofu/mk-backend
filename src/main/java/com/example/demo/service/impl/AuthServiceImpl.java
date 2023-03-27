@@ -2,6 +2,7 @@ package com.example.demo.service.impl;
 
 import com.example.demo.entities.ApplicationUser;
 import com.example.demo.entities.UserRole;
+import com.example.demo.exceptions.ItemNotFoundException;
 import com.example.demo.repo.RoleRepo;
 import com.example.demo.repo.UserRepo;
 import com.example.demo.service.AuthService;
@@ -22,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -32,8 +32,7 @@ public class AuthServiceImpl implements AuthService, UserDetailsService {
     private final UserRepo userRepo;
     private final RoleRepo roleRepo;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
@@ -42,17 +41,14 @@ public class AuthServiceImpl implements AuthService, UserDetailsService {
             log.error("User {} was not found in the database", username);
             throw new UsernameNotFoundException("User was not found in the database");
         } else {
-
             Collection<SimpleGrantedAuthority> authorities = new ArrayList<>();
             user.getRoles().forEach(userRole -> {
                 authorities.add(new SimpleGrantedAuthority(userRole.getName()));
             });
             return new User(user.getUserName(), user.getPasswordHash(), authorities);
-
         }
 
     }
-
 
     @Override
     public ApplicationUser saveUser(ApplicationUser applicationUser) {
@@ -70,6 +66,9 @@ public class AuthServiceImpl implements AuthService, UserDetailsService {
     @Override
     public void assignRoleToUser(String userName, String roleName) {
         ApplicationUser applicationUser = userRepo.findApplicationUserByUserName(userName);
+        if (applicationUser == null) {
+            throw new UsernameNotFoundException("User was not found please check the username");
+        }
         UserRole userRole = roleRepo.findByName(roleName);
         log.info("assigning role : {} to this user {} ", roleName, userName);
         applicationUser.getRoles().add(userRole);

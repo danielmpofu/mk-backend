@@ -12,17 +12,19 @@ import java.util.List;
 @AllArgsConstructor
 @ToString
 @Getter @Setter
+@Data
 public class AdvertModel extends Auditable {
     @Id
     @GeneratedValue
     private long id;
 
-
     private long postedBy;
 
+    private String postTitle, category, location, phoneNumber, phoneNumber2, emailAddress, condition;
+    private  String primaryPic;
 
-    private String postTitle, description, category, location, phoneNumber, phoneNumber2, emailAddress, condition;
-
+    @Column(length = 10000)
+    private String description;
     //@Setter @Getter
     private double price, discountPercent;
 

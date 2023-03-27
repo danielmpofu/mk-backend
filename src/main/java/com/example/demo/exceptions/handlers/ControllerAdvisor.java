@@ -29,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+//import org.postgresql.util.PSQLException;
 
 //@ControllerAdvice
 public class ControllerAdvisor extends ResponseEntityExceptionHandler {
@@ -45,6 +46,21 @@ public class ControllerAdvisor extends ResponseEntityExceptionHandler {
     }
 
 
+    @ExceptionHandler(org.postgresql.util.PSQLException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<Object> handleDatabaseException(org.postgresql.util.PSQLException exception) {
+
+        String messages = exception.getMessage();
+//                .stream()
+//                .parallel()
+//                .map(ConstraintViolation::getMessage).toList();
+
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("validation_errors", messages);
+        return ResponseEntity.badRequest().body(response);
+    }
+
     @ExceptionHandler(ConstraintViolationException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ResponseEntity<Object> handleAnnotationsException(ConstraintViolationException exception) {
@@ -54,12 +70,13 @@ public class ControllerAdvisor extends ResponseEntityExceptionHandler {
                 .parallel()
                 .map(ConstraintViolation::getMessage).toList();
 
-        Map<String,Object> response = new HashMap<>();
-        response.put("validation_errors",messages);
+        Map<String, Object> response = new HashMap<>();
+        response.put("validation_errors", messages);
         return ResponseEntity.badRequest().body(response);
     }
 
     @ExceptionHandler(UnauthorizedAccess.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
     public ResponseEntity<Object> handleUnauthorizedAccess(UnauthorizedAccess ex, WebRequest webRequest) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
@@ -69,6 +86,7 @@ public class ControllerAdvisor extends ResponseEntityExceptionHandler {
     }
 
     @ExceptionHandler(NoDataFoundException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ResponseEntity<Object> handleNodataFoundException(
             NoDataFoundException ex, WebRequest request) {
 

@@ -1,4 +1,5 @@
 package com.example.demo.filter;
+
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.JWTVerifier;
 import com.auth0.jwt.algorithms.Algorithm;
@@ -31,7 +32,10 @@ public class CustomAuthorizationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        if (request.getServletPath().equals("api/v1/login") || request.getServletPath().equals("api/v1/auth/register")) {
+        if (request.getServletPath().equals("api/v1/login")
+                || request.getServletPath().equals("api/v1/auth/register")
+                || request.getServletPath().equals("api/v1/auth/refresh/")
+        ) {
             filterChain.doFilter(request, response);
         } else {
             //look for the token in here
@@ -45,21 +49,18 @@ public class CustomAuthorizationFilter extends OncePerRequestFilter {
                     String userName = decodedJWT.getSubject();
                     String[] roles = decodedJWT.getClaim("roles").asArray(String.class);
                     Collection<SimpleGrantedAuthority> authorities = new ArrayList<>();
-                    stream(roles).forEach(role -> {
-                        authorities.add(new SimpleGrantedAuthority(role));
-                    });
+
+                    if (roles != null) {
+                        stream(roles).forEach(role -> {
+                            authorities.add(new SimpleGrantedAuthority(role));
+                        });
+                    }
                     UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(userName, null, authorities);
                     SecurityContextHolder.getContext().setAuthentication(authenticationToken);
                     filterChain.doFilter(request, response);
                 } catch (Exception e) {
-//                    log.error("There was an error in login : {}", e.getMessage());
-//                    response.setHeader("error", e.getMessage());
-//                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-//                    Map<String, String> map = new HashMap<>();
-//                    map.put("error_message", e.getMessage());
-//                    response.setContentType(APPLICATION_JSON_VALUE);
-//                    new ObjectMapper().writeValue(response.getOutputStream(), map);
-                    throw new UnauthorizedAccess("You are not allowed to access this resource");
+                    throw e;
+//                    throw new UnauthorizedAccess("You are not allowed to access this resource");
                 }
             } else {
                 filterChain.doFilter(request, response);
