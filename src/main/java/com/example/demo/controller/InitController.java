@@ -12,4 +12,10 @@ public class InitController {
     public ResponseEntity<Object> testApp(){
         return ResponseEntity.ok().body("App is running now");
     }
+
+    @GetMapping("/tomcat")
+    public String home() {
+        return "Hello, Tomcat is working!";
+    }
+
 }
