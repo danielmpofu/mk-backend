@@ -28,14 +28,21 @@ fi
 
 # Stop Tomcat safely
 echo "🛑 Stopping Tomcat..."
-sudo systemctl stop tomcat || die "Failed to stop Tomcat"
+if systemctl is-active --quiet tomcat; then
+    sudo systemctl stop tomcat || die "Failed to stop Tomcat"
+else
+    echo "ℹ️ Tomcat was not running, skipping stop."
+fi
 sleep 5
 
 # Kill any remaining Java processes
-if pgrep -f tomcat >/dev/null; then
-    echo "⚠️ Force killing remaining Tomcat processes..."
+TOMCAT_PIDS=$(pgrep -f tomcat)
+if [ -n "$TOMCAT_PIDS" ]; then
+    echo "⚠️ Force killing leftover Tomcat processes: $TOMCAT_PIDS"
     sudo pkill -9 -f tomcat
     sleep 2
+else
+    echo "✅ No leftover Tomcat processes found."
 fi
 
 # Clean previous deployment
