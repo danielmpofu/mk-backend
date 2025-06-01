@@ -1,79 +1,88 @@
 #!/bin/bash
 
-# Configuration - using relative paths since we're in the project dir
-PROJECT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-GIT_REPO="https://github.com/danielmpofu/mk-backend.git"
-GIT_BRANCH="main"
+# Configuration
+PROJECT_DIR="/home/ubuntu/mk-backend"
 WAR_NAME="demo-0.0.1-SNAPSHOT.war"
+DEPLOY_NAME="demo.war"  # Simplified name for deployment
 WAR_PATH="$PROJECT_DIR/target/$WAR_NAME"
 TOMCAT_WEBAPPS="/opt/tomcat/webapps"
-TOMCAT_USER="github"
+TOMCAT_BIN="/opt/tomcat/bin"
+TOMCAT_USER="ubuntu"
+TOMCAT_GROUP="ubuntu"
 LOG_FILE="/var/log/mk-backend-deploy.log"
-JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
 
-# Ensure script can only be run from project directory
-if [ ! -f "$PROJECT_DIR/pom.xml" ]; then
-    echo "❌ Error: This script must be run from the project root directory!"
+# Initialize logging
+exec > >(sudo tee -a $LOG_FILE) 2>&1
+echo "=== Deployment started at $(date) ==="
+
+# Function to fail on error
+die() {
+    echo "❌ ERROR: $1" >&2
     exit 1
+}
+
+# Verify running as correct user
+if [ "$(whoami)" != "ubuntu" ]; then
+    die "Script must be run as ubuntu user"
 fi
 
-# Setup environment
-export JAVA_HOME=$JAVA_HOME
-export PATH=$JAVA_HOME/bin:$PATH
-
-# Logging function
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | sudo tee -a $LOG_FILE
-}
-
-# Error handling
-error_exit() {
-    log "❌ ERROR: $1"
-    log "Check logs: sudo tail -n 20 $LOG_FILE"
-    exit 1
-}
-
-# Verify Java
-java -version >/dev/null 2>&1 || error_exit "Java 17 not found!"
-
-# Git operations
-log "🔄 Updating Git repository..."
-git fetch origin || error_exit "Git fetch failed"
-git checkout $GIT_BRANCH || error_exit "Checkout failed"
-git reset --hard origin/$GIT_BRANCH || error_exit "Git reset failed"
-log "✓ At commit: $(git rev-parse --short HEAD)"
-
-# Build project
-log "⚙️ Building with Maven..."
-mvn clean package -DskipTests || error_exit "Maven build failed"
-
-[ ! -f "$WAR_PATH" ] && error_exit "WAR file not found at $WAR_PATH"
-log "✓ Built WAR: $(du -h $WAR_PATH | cut -f1)"
-
-# Tomcat deployment
-log "🛑 Stopping Tomcat..."
-sudo systemctl stop tomcat || error_exit "Failed to stop Tomcat"
+# Stop Tomcat safely
+echo "🛑 Stopping Tomcat..."
+sudo systemctl stop tomcat || die "Failed to stop Tomcat"
 sleep 5
 
-log "🧹 Cleaning old deployment..."
-sudo rm -rf $TOMCAT_WEBAPPS/demo* || error_exit "Cleanup failed"
+# Kill any remaining Java processes
+if pgrep -f tomcat >/dev/null; then
+    echo "⚠️ Force killing remaining Tomcat processes..."
+    sudo pkill -9 -f tomcat
+    sleep 2
+fi
 
-log "📦 Deploying new WAR..."
-sudo cp $WAR_PATH $TOMCAT_WEBAPPS/ || error_exit "Copy failed"
-sudo chown $TOMCAT_USER:$TOMCAT_USER $TOMCAT_WEBAPPS/$WAR_NAME
+# Clean previous deployment
+echo "🧹 Cleaning old deployment..."
+sudo rm -rf "$TOMCAT_WEBAPPS/demo"* || die "Failed to clean old deployment"
 
-log "🚀 Starting Tomcat..."
-sudo systemctl start tomcat || error_exit "Start failed"
+# Build new version
+echo "⚙️ Building application..."
+cd "$PROJECT_DIR" || die "Failed to enter project directory"
+mvn clean package -DskipTests || die "Maven build failed"
 
-# Verification
-log "⏳ Waiting for deployment (max 30 seconds)..."
-for i in {1..6}; do
-    if curl -sSf http://localhost:8080/demo/ >/dev/null 2>&1; then
-        log "✅ Deployment successful!"
-        log "🌐 Application URL: http://$(curl -s ifconfig.me):8080/demo/"
-        exit 0
+# Verify WAR file exists
+[ ! -f "$WAR_PATH" ] && die "WAR file not found at $WAR_PATH"
+
+# Deploy with correct permissions
+echo "📦 Deploying new version..."
+sudo install -o "$TOMCAT_USER" -g "$TOMCAT_GROUP" -m 750 \
+    "$WAR_PATH" "$TOMCAT_WEBAPPS/$DEPLOY_NAME" || die "Failed to deploy WAR"
+
+# Fix permissions on webapps directory
+echo "🔒 Setting correct permissions..."
+sudo chown -R "$TOMCAT_USER:$TOMCAT_GROUP" "$TOMCAT_WEBAPPS"
+sudo find "$TOMCAT_WEBAPPS" -type d -exec chmod 750 {} \;
+sudo find "$TOMCAT_WEBAPPS" -type f -exec chmod 640 {} \;
+
+# Start Tomcat
+echo "🚀 Starting Tomcat..."
+sudo systemctl start tomcat || die "Failed to start Tomcat"
+
+# Verify deployment
+echo "⏳ Waiting for deployment to complete..."
+DEPLOY_SUCCESS=false
+for i in {1..10}; do
+    if curl -sSf "http://localhost:8080/demo/actuator/health" >/dev/null 2>&1; then
+        DEPLOY_SUCCESS=true
+        break
     fi
     sleep 5
 done
 
-error_exit "Deployment timeout - check Tomcat logs: sudo journalctl -u tomcat -n 50"
+# Final status
+if $DEPLOY_SUCCESS; then
+    PUBLIC_IP=$(curl -s ifconfig.me)
+    echo "✅ Deployment successful!"
+    echo "🌐 Application URL: http://$PUBLIC_IP:8080/demo/"
+else
+    echo "⚠️ Deployment might have failed - checking logs..."
+    sudo tail -n 50 /opt/tomcat/logs/catalina.out
+    die "Application did not start properly"
+fi
