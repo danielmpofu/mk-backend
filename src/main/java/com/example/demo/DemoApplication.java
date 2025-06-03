@@ -18,7 +18,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 @SpringBootApplication
 @OpenAPIDefinition(info = @Info(title = "MK Service API", version = "1.1.0", description = "MK Core Service"))
 
-public class DemoApplication extends SpringBootServletInitializer {
+public class DemoApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(DemoApplication.class, args);
