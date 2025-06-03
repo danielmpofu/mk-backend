@@ -64,6 +64,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .antMatchers(HttpMethod.GET, "/api/v1/auth/refresh/**").permitAll()
                 .antMatchers(HttpMethod.GET, "/api/v1/media/**").permitAll()
                 .antMatchers(HttpMethod.GET, "/api/v1/dogs/**").permitAll()
+                .antMatchers(HttpMethod.GET, "/api/v1/init").permitAll()
+                .antMatchers(HttpMethod.GET, "/api/v1/init/**").permitAll() // This will cover all subpaths under /init
                 .antMatchers(HttpMethod.GET, "/api/v1/adverts/**").permitAll()
                 .anyRequest().authenticated();
 
